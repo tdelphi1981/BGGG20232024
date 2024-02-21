@@ -1,12 +1,17 @@
 # Wikipedi dosyasındaki text bilgisine erişilmeli!
 
-# DENEME 1 (BAŞARISIZ)
+# DENEME 2
 # JSON görünüyor, Python JSON kütüphanesi ile bilgi almayı deneyelim
 
-from json import load
-# load bir json dosyasını Python nesnesine dönüştürür
+from json import loads
+
+# loads bir metin bilgisini Python nesnesine dönüştürür
+
+orneklem = []
 
 with open("veri/orneklem.json", "r") as dosya:
-    orneklem = load(dosya)
+    for satir in dosya:
+        ornek = loads(satir)
+        orneklem.append(ornek)
 
 print(f"Örneklem sayısı {len(orneklem)}")
