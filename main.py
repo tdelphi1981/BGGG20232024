@@ -15,3 +15,6 @@ with open("veri/orneklem.json", "r") as dosya:
         orneklem.append(ornek)
 
 print(f"Örneklem sayısı {len(orneklem)}")
+
+orneklem = [ornek["text"] for ornek in orneklem]
+
