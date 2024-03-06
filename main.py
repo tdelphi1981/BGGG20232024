@@ -89,7 +89,7 @@ print(zamirler)
 
 orneklem = [[budayici.stem(parca) for parca in ornek if parca not in zamirler] for ornek in orneklem]
 
-print("3- Metin Analizi")
+print("3- Sayısallaştırma")
 
 print("3.1- Sözlük Oluşturma")
 sozluk = set()
@@ -104,4 +104,20 @@ sozluk = list(sozluk)
 
 sozluk.sort()
 
-print("3.2- Ağırlıklandırma")
+print("3.2- Sayısallaştırma")
+
+# Kelimeden Sıra Numarasına gitme
+import bisect
+
+sayisal_orneklem = []
+
+for ornek in orneklem:
+    sayisal_ornek = [bisect.bisect_left(sozluk, kelime) for kelime in ornek]
+    sayisal_orneklem.append(sayisal_ornek)
+
+print(orneklem[0])
+print(sayisal_orneklem[0])
+d0 = sayisal_orneklem[0]
+from collections import Counter
+
+frekanslar = Counter(d0)
