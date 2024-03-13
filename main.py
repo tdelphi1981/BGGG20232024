@@ -1,9 +1,11 @@
 # Wikipedi dosyasındaki text bilgisine erişilmeli!
 from datetime import datetime
+from json import loads
+
+import numpy as np
+
 # DENEME 2
 # JSON görünüyor, Python JSON kütüphanesi ile bilgi almayı deneyelim
-
-from json import loads
 
 # loads bir metin bilgisini Python nesnesine dönüştürür
 print("1- Veri Yükleme")
@@ -12,9 +14,13 @@ baslangic = genel_baslangic
 orneklem = []
 
 with open("veri/orneklem.json", "r") as dosya:
+    i = 0
     for satir in dosya:
         ornek = loads(satir)
         orneklem.append(ornek)
+        i += 1
+        # if i > 5:
+        #    break
 
 print(f"Örneklem sayısı {len(orneklem)} tamamlanma süresi: {datetime.now() - baslangic}")
 
@@ -140,5 +146,32 @@ from collections import Counter
 
 frekans_orneklem = [Counter(dokuman) for dokuman in sayisal_orneklem]
 print(f"Tamamlanma süresi: {datetime.now() - baslangic}")
+baslangic = datetime.now()
+print("3.2.1.1- Terim Frekansları Hesaplanıyor")
+
+N = len(orneklem)
+M = len(sozluk)
+
+tdm = np.zeros((N, M))
+
+for i, frekanslar in enumerate(frekans_orneklem):
+    avgfik = sum(frekanslar.values()) / len(frekanslar)
+    katsayi = 1 / (1 + np.log10(avgfik))
+    for j, fik in frekanslar.items():
+        tdm[i, j] = (1 + np.log10(fik)) * katsayi
+print(f"Tamamlanma süresi: {datetime.now() - baslangic}")
+
+baslangic = datetime.now()
+print("3.2.1.1- Doküman Frekansları Hesaplanıyor")
+
+A = tdm > 0
+
+df = A.sum(axis=0)
+
+idf = np.log10(N / df)
+
+print(f"Tamamlanma süresi: {datetime.now() - baslangic}")
+
+tfidf = tdm * idf
 
 print(f"Genel Tamamlanma süresi : {datetime.now() - genel_baslangic}")
