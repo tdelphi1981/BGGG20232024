@@ -13,7 +13,7 @@ genel_baslangic = datetime.now()
 baslangic = genel_baslangic
 orneklem = []
 
-with open("veri/orneklem.json", "r") as dosya:
+with open("veri/wikipedia_10000.json", "r") as dosya:
     for satir in dosya:
         ornek = loads(satir)
         orneklem.append(ornek)
