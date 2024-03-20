@@ -19,8 +19,8 @@ with open("veri/orneklem.json", "r") as dosya:
         ornek = loads(satir)
         orneklem.append(ornek)
         i += 1
-        # if i > 5:
-        #    break
+        if i > 5:
+            break
 
 print(f"Örneklem sayısı {len(orneklem)} tamamlanma süresi: {datetime.now() - baslangic}")
 
@@ -173,5 +173,27 @@ idf = np.log10(N / df)
 print(f"Tamamlanma süresi: {datetime.now() - baslangic}")
 
 tfidf = tdm * idf
+
+baslangic = datetime.now()
+print("3.2.2- Doküman Vektörü Normalizasyonu")
+
+dokuman_uzunluklari = (tfidf ** 2).sum(axis=1)
+
+for i in range(N):
+    tfidf[i, :] = tfidf[i, :] / np.sqrt(dokuman_uzunluklari[i])
+
+print("3.3- Sparse Matrise çevirme")
+
+from scipy.sparse import csr_matrix
+
+tfidf_sparse = csr_matrix(tfidf)
+
+# tfidf_sparse.indptr # RI
+# tfidf_sparse.indices # CI
+# tfidf_sparse.data # V
+
+d5 = tfidf_sparse[5, :]
+
+d5 = tfidf_sparse.data[tfidf_sparse.indptr[5]:tfidf_sparse.indptr[6]]
 
 print(f"Genel Tamamlanma süresi : {datetime.now() - genel_baslangic}")
