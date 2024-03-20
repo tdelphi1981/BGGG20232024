@@ -14,13 +14,9 @@ baslangic = genel_baslangic
 orneklem = []
 
 with open("veri/orneklem.json", "r") as dosya:
-    i = 0
     for satir in dosya:
         ornek = loads(satir)
         orneklem.append(ornek)
-        i += 1
-        if i > 5:
-            break
 
 print(f"Örneklem sayısı {len(orneklem)} tamamlanma süresi: {datetime.now() - baslangic}")
 
