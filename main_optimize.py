@@ -1,14 +1,19 @@
+import argparse
 import bisect
 import multiprocessing
+import os
+import pickle
 import re
 import unicodedata
 from collections import Counter
 from datetime import datetime
 from json import loads
+from pathlib import Path
 
 import nltk
 import numpy as np
-from scipy.sparse import lil_matrix
+import scipy.sparse
+from scipy.sparse import lil_matrix, save_npz, load_npz
 
 budayici = nltk.stem.SnowballStemmer('english')
 zamirler = nltk.corpus.stopwords.words('english')
@@ -45,12 +50,12 @@ def onisle(metin: str) -> list[str]:
     return metin
 
 
-def sozluk_olustur(dosyaadi: str):
+def sozluk_olustur(dosyaadi: str, process_sayisi: int = 10):
     baslangic = datetime.now()
     print("Sözlük oluşturuluyor...")
     sozluk = set()
     N = 0
-    with multiprocessing.Pool(processes=10) as p:
+    with multiprocessing.Pool(processes=process_sayisi) as p:
         for blok in dosyaOku(dosyaadi, 100):
             metin_parcalari = [p.apply_async(onisle, (dokuman,)).get()
                                for dokuman in blok]
@@ -131,12 +136,49 @@ def tfidf(sozluk: list[str], N: int, dosyaadi: str):
     return tfidf
 
 
-def main(dosyaadi: str):
+def main(parametreler):
+    deney_ana_klasor = Path("deneyler")
+
+    deney_klasor = deney_ana_klasor / parametreler.deneyadi
+
+    if not deney_klasor.exists():
+        deney_klasor.mkdir(parents=True)
+
     baslangic = datetime.now()
-    sozluk, N = sozluk_olustur(dosyaadi)
-    tdm = tfidf(sozluk, N, dosyaadi)
+
+    sozluk_dosyasi = deney_klasor / "sozluk.szl"
+    if not sozluk_dosyasi.exists():
+        sozluk, N = sozluk_olustur(parametreler.dosyaadi,
+                                   process_sayisi=parametreler.process_sayisi)
+        with sozluk_dosyasi.open("wb") as dosya:
+            pickle.dump(sozluk, dosya)
+            pickle.dump(N, dosya)
+    else:
+        with sozluk_dosyasi.open("rb") as dosya:
+            sozluk = pickle.load(dosya)
+            N = pickle.load(dosya)
+
+    tfidf_dosyasi = deney_klasor / "tfidf.idx"
+    if not tfidf_dosyasi.exists():
+        tdm = tfidf(sozluk, N, parametreler.dosyaadi)
+        with tfidf_dosyasi.open("wb") as dosya:
+            save_npz(dosya, tdm, compressed=True)
+    else:
+        with tfidf_dosyasi.open("rb") as dosya:
+            tdm = load_npz(dosya)
+
     print(f"Tamamlanma süresi: {datetime.now() - baslangic}")
 
 
 if __name__ == '__main__':
-    main(dosyaadi="veri/wikipedia_10000.json")
+    arg_parser = argparse.ArgumentParser(prog="NLP Dizinleyici",
+                                         description="Bu program cverilen bir Wikipedia JSON dosyasını klasik NLP "
+                                                     "Yöntemleri iler dizinler.")
+    arg_parser.add_argument("dosyaadi", help="Dizinlenecek dosya adı")
+    arg_parser.add_argument("-p", "--process-sayisi", dest="process_sayisi",
+                            type=int, default=os.cpu_count()//2, help="Önişlemede kullanılacak Process sayisi")
+    arg_parser.add_argument("-d", "--deney-adi", dest="deneyadi",
+                            type=str, default="deney1", help="Oluşturulacak deney klasörü")
+    args = arg_parser.parse_args()
+
+    main(parametreler=args)
