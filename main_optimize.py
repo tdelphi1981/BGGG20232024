@@ -1,5 +1,6 @@
 import argparse
 import bisect
+import math
 import multiprocessing
 import os
 import pickle
@@ -12,7 +13,6 @@ from pathlib import Path
 
 import nltk
 import numpy as np
-import scipy.sparse
 from scipy.sparse import lil_matrix, save_npz, load_npz
 
 budayici = nltk.stem.SnowballStemmer('english')
@@ -50,15 +50,14 @@ def onisle(metin: str) -> list[str]:
     return metin
 
 
-def sozluk_olustur(dosyaadi: str, process_sayisi: int = 10):
+def sozluk_olustur(dosyaadi: str, process_sayisi: int = 10, blok_boyutu: int = 100):
     baslangic = datetime.now()
     print("Sözlük oluşturuluyor...")
     sozluk = set()
     N = 0
     with multiprocessing.Pool(processes=process_sayisi) as p:
-        for blok in dosyaOku(dosyaadi, 100):
-            metin_parcalari = [p.apply_async(onisle, (dokuman,)).get()
-                               for dokuman in blok]
+        for blok in dosyaOku(dosyaadi, blok_boyutu):
+            metin_parcalari = p.map(onisle, blok)
 
             for parcalar in metin_parcalari:
                 sozluk.update(parcalar)
@@ -71,54 +70,66 @@ def sozluk_olustur(dosyaadi: str, process_sayisi: int = 10):
     return sozluk, N
 
 
-def tfidf(sozluk: list[str], N: int, dosyaadi: str):
+def tfidf(sozluk: list[str], N: int, dosyaadi: str, blok_boyutu: int = 100,
+          process_sayisi: int = 10):
     baslangic = datetime.now()
     print("TF-IDF oluşturuluyor...")
     tfidf = lil_matrix((N, len(sozluk)))
     i = 0
-    for blok in dosyaOku(dosyaadi, 100):
-        blok_metin_parcalari = [onisle(metin) for metin in blok]
+    with multiprocessing.Pool(processes=process_sayisi) as p:
+        for blok in dosyaOku(dosyaadi, blok_boyutu):
+            blok_metin_parcalari = p.map(onisle, blok)
 
-        sozluk_sira_nolari = [[bisect.bisect_left(sozluk, kelime) for kelime in metin_parcalari]
-                              for metin_parcalari in blok_metin_parcalari]
+            sozluk_sira_nolari = [[bisect.bisect_left(sozluk, kelime) for kelime in metin_parcalari]
+                                  for metin_parcalari in blok_metin_parcalari]
 
-        blok_frekanslar = [Counter(ssn) for ssn in sozluk_sira_nolari]
+            blok_frekanslar = [Counter(ssn) for ssn in sozluk_sira_nolari]
 
-        sutun_sira_nolari = [np.array(list(bf.keys())) for bf in blok_frekanslar]
-        frekans_degerleri = [np.array(list(bf.values())) for bf in blok_frekanslar]
+            sutun_sira_nolari = [np.array(list(bf.keys())) for bf in blok_frekanslar]
+            frekans_degerleri = [np.array(list(bf.values())) for bf in blok_frekanslar]
 
-        for sut, frekans in zip(sutun_sira_nolari, frekans_degerleri):
-            tfidf[i, sut] = frekans
-            i += 1
+            for sut, frekans in zip(sutun_sira_nolari, frekans_degerleri):
+                tfidf[i, sut] = frekans
+                i += 1
 
-        print(f"{i}. doküman dizinlendi...", end='\r')
-
+            print(f"{i}. doküman dizinlendi...", end='\r')
+    print("\nDoküman dizinleme işlemi tamamlandı, sparse matris dönüştürülüyor")
     tfidf = tfidf.tocsr()
+    print(
+        f"Dönüşüm tamamlandı, matris doluluk oranı % "
+        f"{math.ceil(10000 * tfidf.nnz / (tfidf.shape[0] * tfidf.shape[1])) / 100}")
 
+    print("TF hesaplanıyor...")
+    print("Satır ortalamaları hesaplanıyor...")
     satir_toplam = np.asarray(tfidf.sum(axis=1).flatten()).reshape(-1)
     satir_es = tfidf.indptr[1:] - tfidf.indptr[:-1]
     satir_ort = satir_toplam / satir_es
     satir_ort = 1 + np.log10(satir_ort)
 
+    print("Satır ortalamaları hesaplandı...")
     tfidf.data = 1 + np.log10(tfidf.data)
 
-    for i in range(N):
-        tfidf[i, :] /= satir_ort[i]
+    tfidf = tfidf.multiply((1 / satir_ort).reshape(-1, 1))
+
+    # for i in range(N):
+    #    tfidf[i, :] /= satir_ort[i]
 
     print("IDF hesaplanıyor")
 
-    tfidf = tfidf.tocsc()
+    tfidf_col = tfidf.tocsc(copy=True)
 
-    sutun_es = tfidf.indptr[1:] - tfidf.indptr[:-1]
+    sutun_es = tfidf_col.indptr[1:] - tfidf_col.indptr[:-1]
 
     idf = np.log10((N - sutun_es) / sutun_es)
 
     print("TF*IDF Hesaplanıyor")
 
+    tfidf = tfidf.tocsr().multiply(idf)
+
     tfidf = tfidf.tocsr()
 
-    for i in range(N):
-        tfidf[i, :] *= idf[i]
+    # for i in range(N):
+    #    tfidf[i, :] *= idf[i]
 
     print("Normalizasyon yapılıyor")
 
@@ -128,11 +139,17 @@ def tfidf(sozluk: list[str], N: int, dosyaadi: str):
     # for i in range(N):
     #     tfidf[i, :] /= uzunluk[i]
 
-    for i in range(N):
-        satir = tfidf.data[tfidf.indptr[i]:tfidf.indptr[i + 1]]
-        tfidf[i, :] /= np.sqrt(np.sum(satir * satir))
+    norm_rows = np.sqrt(np.add.reduceat(tfidf.data * tfidf.data, tfidf.indptr[:-1]))
+    nnz_per_row = np.diff(tfidf.indptr)
+    tfidf.data /= np.repeat(norm_rows, nnz_per_row)
 
-    print(f"\nTF-IDF oluşuturuldu, tamamlanma süresi {datetime.now() - baslangic}")
+    # for i in range(N):
+    #    satir = tfidf.data[tfidf.indptr[i]:tfidf.indptr[i + 1]]
+    #    tfidf[i, :] /= np.sqrt(np.sum(satir * satir))
+
+    print(f"\nTF-IDF oluşturuldu, tamamlanma süresi {datetime.now() - baslangic}\n"
+          f"Doluluk oranı: % {math.ceil(10000 * tfidf.nnz / (tfidf.shape[0] * tfidf.shape[1])) / 100}\n"
+          f"0'dan farklı eleman sayısı: {tfidf.nnz}")
     return tfidf
 
 
@@ -149,7 +166,8 @@ def main(parametreler):
     sozluk_dosyasi = deney_klasor / "sozluk.szl"
     if not sozluk_dosyasi.exists():
         sozluk, N = sozluk_olustur(parametreler.dosyaadi,
-                                   process_sayisi=parametreler.process_sayisi)
+                                   process_sayisi=parametreler.process_sayisi,
+                                   blok_boyutu=parametreler.blok_boyutu)
         with sozluk_dosyasi.open("wb") as dosya:
             pickle.dump(sozluk, dosya)
             pickle.dump(N, dosya)
@@ -160,7 +178,9 @@ def main(parametreler):
 
     tfidf_dosyasi = deney_klasor / "tfidf.idx"
     if not tfidf_dosyasi.exists():
-        tdm = tfidf(sozluk, N, parametreler.dosyaadi)
+        tdm = tfidf(sozluk, N, parametreler.dosyaadi,
+                    blok_boyutu=parametreler.blok_boyutu,
+                    process_sayisi=parametreler.process_sayisi)
         with tfidf_dosyasi.open("wb") as dosya:
             save_npz(dosya, tdm, compressed=True)
     else:
@@ -176,9 +196,11 @@ if __name__ == '__main__':
                                                      "Yöntemleri iler dizinler.")
     arg_parser.add_argument("dosyaadi", help="Dizinlenecek dosya adı")
     arg_parser.add_argument("-p", "--process-sayisi", dest="process_sayisi",
-                            type=int, default=os.cpu_count()//2, help="Önişlemede kullanılacak Process sayisi")
+                            type=int, default=os.cpu_count() // 2, help="Önişlemede kullanılacak Process sayisi")
     arg_parser.add_argument("-d", "--deney-adi", dest="deneyadi",
                             type=str, default="deney1", help="Oluşturulacak deney klasörü")
+    arg_parser.add_argument("-b", "--blok-boyutu", dest="blok_boyutu",
+                            type=int, default=100, help="Blok boyutu")
     args = arg_parser.parse_args()
 
     main(parametreler=args)
