@@ -139,4 +139,4 @@ def main(dosyaadi: str):
 
 
 if __name__ == '__main__':
-    main(dosyaadi="veri/wikipedia_10000.json")
+    main(dosyaadi="veri/wikipedia_1000.json")
