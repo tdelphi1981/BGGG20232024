@@ -4,19 +4,15 @@ import math
 import multiprocessing
 import os
 import pickle
-import re
-import unicodedata
 from collections import Counter
 from datetime import datetime
 from json import loads
 from pathlib import Path
 
-import nltk
 import numpy as np
 from scipy.sparse import lil_matrix, save_npz, load_npz
 
-budayici = nltk.stem.SnowballStemmer('english')
-zamirler = nltk.corpus.stopwords.words('english')
+from onisleme import onisle
 
 
 def dosyaOku(dosyaAdi: str, blokBoyutu: int = 1):
@@ -30,24 +26,6 @@ def dosyaOku(dosyaAdi: str, blokBoyutu: int = 1):
                 blok = []
         if len(blok) > 0:
             yield blok
-
-
-def onisle(metin: str) -> list[str]:
-    metin = metin.lower()
-    metin = unicodedata.normalize('NFKD', metin)
-    secilen_kategoriler = ['Ll', 'Nd', 'Zs']
-    kategoriler = [unicodedata.category(karakter) for karakter in metin]
-    yeni_metin = "".join([metin[j] if kategoriler[j] in secilen_kategoriler and kategoriler[j] != 'Zs'
-                          else ' ' for j in range(len(metin))])
-    metin = re.sub(' +', ' ', yeni_metin)
-
-    metin = metin.strip()
-
-    metin = metin.split()
-
-    metin = [budayici.stem(parca) for parca in metin if parca not in zamirler]
-
-    return metin
 
 
 def sozluk_olustur(dosyaadi: str, process_sayisi: int = 10, blok_boyutu: int = 100):
