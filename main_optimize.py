@@ -78,16 +78,17 @@ def tfidf(sozluk: list[str], N: int, dosyaadi: str, blok_boyutu: int = 100,
         f"{math.ceil(10000 * tfidf.nnz / (tfidf.shape[0] * tfidf.shape[1])) / 100}")
 
     print("TF hesaplanıyor...")
-    print("Satır ortalamaları hesaplanıyor...")
-    satir_toplam = np.asarray(tfidf.sum(axis=1).flatten()).reshape(-1)
-    satir_es = tfidf.indptr[1:] - tfidf.indptr[:-1]
-    satir_ort = satir_toplam / satir_es
-    satir_ort = 1 + np.log10(satir_ort)
-
-    print("Satır ortalamaları hesaplandı...")
     tfidf.data = 1 + np.log10(tfidf.data)
-
-    tfidf = tfidf.multiply((1 / satir_ort).reshape(-1, 1))
+    # print("Satır ortalamaları hesaplanıyor...")
+    # satir_toplam = np.asarray(tfidf.sum(axis=1).flatten()).reshape(-1)
+    # satir_es = tfidf.indptr[1:] - tfidf.indptr[:-1]
+    # satir_ort = satir_toplam / satir_es
+    # satir_ort = 1 + np.log10(satir_ort)
+    #
+    # print("Satır ortalamaları hesaplandı...")
+    # tfidf.data = 1 + np.log10(tfidf.data)
+    #
+    # tfidf = tfidf.multiply((1 / satir_ort).reshape(-1, 1))
 
     # for i in range(N):
     #    tfidf[i, :] /= satir_ort[i]
@@ -98,7 +99,7 @@ def tfidf(sozluk: list[str], N: int, dosyaadi: str, blok_boyutu: int = 100,
 
     sutun_es = tfidf_col.indptr[1:] - tfidf_col.indptr[:-1]
 
-    idf = np.log10((N - sutun_es) / sutun_es)
+    idf = np.log10(N / sutun_es)
 
     print("TF*IDF Hesaplanıyor")
 
