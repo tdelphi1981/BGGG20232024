@@ -19,7 +19,7 @@ def ilklendir(V: csr_matrix, k: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def optimizasyon(V: csr_matrix, w: np.ndarray, h: np.ndarray):
-    epsilon = 1e-2
+    epsilon = 1e-3
     i = 0
     while True:
         hn1 = h * ((w.T @ V) / (w.T @ w @ h))
@@ -41,6 +41,19 @@ def nmf(V: csr_matrix, k: int):
     return w, h
 
 
+def konulari_isimlendir(h: np.ndarray, sozluk: list[str]):
+    k, n = h.shape
+
+    konular = []
+
+    for i in range(k):
+        konu_vek = h[i, :]
+        orders = np.flip(np.argsort(konu_vek))[:15]
+        konular.append([sozluk[i] for i in orders])
+
+    return konular
+
+
 def main(deney_adi: str):
     deneyKlasoru = Path('deneyler') / deney_adi
 
@@ -53,12 +66,18 @@ def main(deney_adi: str):
     with tfidfDosyasi.open("rb") as f:
         tfidf = load_npz(f)
 
-    konu_sayisi = 5
+    konu_sayisi = 11
 
     w, h = nmf(tfidf, konu_sayisi)
 
+    konular = konulari_isimlendir(h, sozluk)
+
     print("NMF Tamamlandı...")
 
+    print("Bulunan konular;")
+
+    for konu in konular:
+        print(", ".join(konu))
 
 
 if __name__ == '__main__':
