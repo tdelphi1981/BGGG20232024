@@ -67,8 +67,12 @@ input_string = ("Korkma, sönmez bu şafaklarda yüzen al sancak; "
                 "Hakkıdır, hür yaşamış bayrağımın hürriyet; "
                 "Hakkıdır, Hakk’a tapan milletimin istiklâl!")
 
+output = tokenizer.encode(input_string).ids
+
+print(output)
+
 output = tokenizer.encode(input_string).tokens
 
 print(output)
 
-tokenizer.save("tokenizer.json")
+# tokenizer.save("tokenizer.json")
